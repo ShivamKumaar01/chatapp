@@ -26,29 +26,43 @@ import { redirect } from 'next/dist/server/api-utils'
 import google from '../assets/google.png'
 import apple from '../assets/apple.png'
 import Image from 'next/image'
-import {db} from '../app/firebaseConfig'
+import {db,auth} from '../app/firebaseConfig'
 import{collection,addDoc} from 'firebase/firestore'
+import{useCreateUserWithEmailAndPassword}from 'react-firebase-hooks/auth'
+import { useRouter } from 'next/navigation';
 
-async function addDataToFireStore(data){
-  try{
-    const docRef=await addDoc(collection(db,"users"),{
-      name:data.name,
-      email:data.email,
-      password:data.password,
+// async function addDataToFireStore(data){
+//   try{
+//     const docRef = await addDoc(collection(db, "users"), {
+//       name: data.name,
+//       email: data.email,
+//       password: data.password,
+//     });
+//     console.log("Document written with ID:", docRef.id);
+//     return true;
+//   } catch(error){
+//     console.log("Error is:", error);
+//     return false;
+//   }
+// }
+
+const addDataToFireStore = async (data, uid) => {
+  try {
+    const docRef = await addDoc(collection(db, "users"), {
+      name: data.name,
+      email: data.email,
+      uid: uid,
     });
-    console.log("document written with id:",docRef.id);
-    createUserWithEmailAndPassword(auth,data.email,)
-    return true;
-    }
-    catch(error){
-      console.log("error is :",error);
-      return false;
-    }
+
+    console.log("Document written with ID: ", docRef.id);
+    return docRef; // <- return the docRef for two-way response
+  } catch (error) {
+    console.error("Error adding document: ", error);
+    throw error;
   }
+};
 
-  // async function createUserWithEmailAndPassword(auth,email,password){
-
-  // }
+  
 
 
 
@@ -64,14 +78,12 @@ const schema = yup.object().shape({
     .matches(/[0-9]/, "Password must have at least one number")
     .matches(/[@$!%*?&#]/, "Password must have at least one special character")
     .required("Password is required"),
-  // confirmPassword: yup
-  //   .string()
-  //   .oneOf([yup.ref("password"), null], "Passwords must match")
-  //   .required("Confirm Password is required"),
+
 });
 
 
 const SignupForm = () => {
+  const router = useRouter();
   const {
     register,
     handleSubmit,
@@ -81,39 +93,69 @@ const SignupForm = () => {
   });
 
   const [showPassword, setShowPassword] = useState(false);
-  // const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  // const navigate=useNavigate();
+  const [createUserWithEmailAndPassword] = useCreateUserWithEmailAndPassword(auth);
 
  
   const togglePasswordVisibility = () => setShowPassword(!showPassword);
-  // const toggleConfirmPasswordVisibility = () => setShowConfirmPassword(!showConfirmPassword);
+ 
 
-  const onSubmit = (data) => {
-    console.log("Submitted Data:", data,);
-    addDataToFireStore(data);
-    // if(data.role==="vendor"){
-    //   let vendors=JSON.parse(localStorage.getItem("vendors")) || [];
-    //   vendors.push(data);
-    //   console.log( "helllllll",vendors)
+  // const onSubmit = async (data) => {
+  //   try {
+  //     const userCredential = await createUserWithEmailAndPassword(data.email, data.password);
+  
+  //     if (userCredential) {
+  //       await addDataToFireStore(data);
+  //       toast.success("Signup Successful!", {
+  //         position: "top-right",
+  //         autoClose: 3000,
+  //       });
+        
+  //       console.log("navigate to login");
+  //       setTimeout(() => {
+  //       router.push('/login')// using window.location because `redirect()` is a Next.js server function
+  //       }, 1000);
+  //     }
+  //   } catch (error) {
+  //     console.error("Signup error:", error.message);
+  //     toast.error(error.message || "Signup Failed");
+  //   }
+  // };
 
-    //   localStorage.setItem("vendors",JSON.stringify(vendors));
-    // }
-    // else{
-    //   let users = JSON.parse(localStorage.getItem("users")) || [];
-    //   users.push(data);
-    //   localStorage.setItem("users",JSON.stringify(users));
-    // }
 
-    toast.success("Signup Successful!", {
-      position: "top-right",
-      autoClose: 3000,
-     
-    });
-    console.log("navigate to login");
-    setTimeout(() => {
-      redirect('/login');
-    }, 1000);
+  const onSubmit = async (data) => {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(
+        data.email,
+        data.password
+      );
+  
+      if (userCredential?.user?.uid) {
+        const uid = userCredential.user.uid;
+  
+        const docRef = await addDataToFireStore(data, uid); // two-way here
+        toast.success("Signup Successful!", {
+          position: "top-right",
+          autoClose: 3000,
+        });
+  
+        console.log("Firestore doc ID:", docRef.id);
+        router.push("/login");
+      }
+    } catch (error) {
+      console.error("Signup error:", error.message);
+      toast.error(error.message || "Signup Failed");
+    }
   };
+  
+
+  function googleSignup(){
+    console.log("google button is clicked")
+  }
+
+
+  function appleSignup(){
+    console.log("apple button is clicked")
+  }
 
  
   return (
@@ -136,16 +178,7 @@ const SignupForm = () => {
       </Typography>
 
       <form onSubmit={handleSubmit(onSubmit)}>
-        {/* <FormControl fullWidth margin="normal">
-          <InputLabel>Role</InputLabel>
-          <Select {...register("role")} error={!!errors.role}>
-            <MenuItem value="vendor">Vendor</MenuItem>
-            <MenuItem value="user">User</MenuItem>
-          </Select>
-          <Typography variant="caption" color="error">
-            {errors.role?.message}
-          </Typography>
-        </FormControl> */}
+    
 
      
         <TextField
@@ -188,24 +221,7 @@ const SignupForm = () => {
         />
 
    
-        {/* <TextField
-          label="Confirm Password"
-          type={showConfirmPassword ? "text" : "password"}
-          fullWidth
-          margin="normal"
-          {...register("confirmPassword")}
-          error={!!errors.confirmPassword}
-          helperText={errors.confirmPassword?.message}
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                <IconButton onClick={toggleConfirmPasswordVisibility} edge="end">
-                  {showConfirmPassword ? <MdVisibilityOff /> : <MdOutlineVisibility />}
-                </IconButton>
-              </InputAdornment>
-            ),
-          }}
-        /> */}
+  
 
 
         <Button type="submit" variant="contained" color="primary" fullWidth sx={{ mt: 2 }}>
@@ -219,18 +235,18 @@ const SignupForm = () => {
         </Box>
 
         <Box width={'100%'} border={'1px solid black'} marginTop={'8%'} height={'35px'} display={'flex'}>
-          <Box width={'50%'} height={'90%'} border={'1px solid black'} borderRadius={20}>
-              <Image src={google} height={20}width={20} alt='googleimg'  ></Image>
-              sign in with google
+          <Box width={'50%'} height={'90%'} border={'1px solid black'} borderRadius={20} onClick={googleSignup}>
+              <Image src={google} height={15}width={15} alt='googleimg'  ></Image>
+             <Typography>sign in with google</Typography>
           </Box>
-          <Box width={'50%'} height={'90%'} border={'1px solid black'} borderRadius={20} marginLeft={'6%'}>
-            <Image></Image>
-            sign in with apple
+          <Box width={'50%'} height={'90%'} border={'1px solid black'} borderRadius={20} marginLeft={'6%'} onClick={appleSignup}>
+            <Image src={apple}  height={15}width={15} alt='appleimg' ></Image>
+            <Typography>sign in with apple</Typography>
           </Box>
         </Box>
 
         <Box marginTop={5} paddingLeft={7} >
-          <Typography >Have an account? <a href='/login' color='sky'>login</a></Typography>
+          <Typography >Have an account? <a href='/login' >login</a></Typography>
          
         </Box>
 

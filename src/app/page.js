@@ -25,7 +25,7 @@ export default function Signup() {
         sx={{ p: 2, width: '50%' }}
       >
 
-        <Box width={'50%'} height={'60%'} marginLeft={'25%'} marginTop={'20%'}>
+        <Box width={'50%'} height={'60%'} marginLeft={'25%'} marginTop={'10%'}>
           <SignupForm></SignupForm>
         </Box>
 
